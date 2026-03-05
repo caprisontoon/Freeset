@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, Settings, Bell, LayoutGrid, Mic, Trophy, 
   Heart, Box, User, Search, Sun, Moon, ChevronLeft, ChevronRight, 
-  Play, Image as ImageIcon, Volume2, Plus, X, AlignCenter, AlignLeft, MessageSquare
+  Play, Image as ImageIcon, Volume2, Plus, X, AlignCenter, AlignLeft, MessageSquare,
+  MessageCircle, Smartphone, ArrowUp, Edit2, Check, GripVertical
 } from 'lucide-react';
 
 export default function App() {
-  const [activeMenu, setActiveMenu] = useState<'alert' | 'widget'>('widget');
+  const [activeMenu, setActiveMenu] = useState<'alert' | 'widget'>('alert');
   const [layoutMode, setLayoutMode] = useState<'split' | 'collapse' | 'pip'>('split');
   const [isCollapsed, setIsCollapsed] = useState(false);
 
@@ -107,6 +108,9 @@ export default function App() {
             />
           )}
         </main>
+
+        {/* Floating Action Buttons (Bottom Right) */}
+        <FloatingActionButtons />
       </div>
     </div>
   );
@@ -247,22 +251,32 @@ function WidgetSettings({ layoutMode, isCollapsed, setIsCollapsed, setLayoutMode
           </div>
         </div>
 
-        {/* Collapse Toggle Button */}
+        {/* Collapse Toggle Button & Divider */}
         {layoutMode === 'collapse' && (
-          <div className="relative flex items-center justify-center w-0 z-10">
-            <button 
-              onClick={() => setIsCollapsed(!isCollapsed)}
-              className="absolute top-32 left-0 w-6 h-12 bg-white border border-gray-300 rounded-r-md shadow-sm flex items-center justify-center text-gray-500 hover:text-blue-500 hover:bg-blue-50 transition-colors"
-            >
-              {isCollapsed ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
-            </button>
+          <div className="relative w-0 z-20">
+            {/* Vertical Divider Line */}
+            <div className="absolute top-0 bottom-0 w-px bg-gray-200"></div>
+            
+            {/* Sticky Toggle Button */}
+            <div className="sticky top-[50vh] -translate-y-1/2 -ml-3.5">
+              <button 
+                onClick={() => setIsCollapsed(!isCollapsed)}
+                className="w-7 h-20 bg-white border border-gray-200 rounded-full shadow-sm flex items-center justify-center text-gray-400 hover:text-blue-500 hover:border-blue-300 hover:bg-blue-50 hover:shadow-md transition-all group"
+              >
+                <div className="flex flex-col items-center gap-1">
+                  <div className="w-1 h-1 rounded-full bg-gray-300 group-hover:bg-blue-300 transition-colors"></div>
+                  {isCollapsed ? <ChevronLeft size={14} strokeWidth={3} /> : <ChevronRight size={14} strokeWidth={3} />}
+                  <div className="w-1 h-1 rounded-full bg-gray-300 group-hover:bg-blue-300 transition-colors"></div>
+                </div>
+              </button>
+            </div>
           </div>
         )}
 
         {/* Preview Area (Right or Floating) */}
         <div className={`transition-all duration-300 ease-in-out flex justify-end ${
           layoutMode === 'pip' 
-            ? 'fixed bottom-8 right-8 w-[400px] z-50 shadow-2xl bg-white rounded-xl border border-gray-200 overflow-hidden' 
+            ? 'fixed bottom-8 right-28 w-[400px] z-40 shadow-2xl bg-white rounded-xl border border-gray-200 overflow-hidden' 
             : `shrink-0 sticky top-24 overflow-hidden ${
                 (layoutMode === 'collapse' && isCollapsed)
                   ? 'w-0 opacity-0 ml-0'
@@ -328,9 +342,206 @@ function WidgetSettings({ layoutMode, isCollapsed, setIsCollapsed, setLayoutMode
 function AlertSettings({ layoutMode, isCollapsed, setIsCollapsed, setLayoutMode }: any) {
   const [showPreviewAnim, setShowPreviewAnim] = useState(true);
 
+  // --- Preset Group State ---
+  const [presetGroups, setPresetGroups] = useState([
+    {
+      id: 'g1',
+      name: '기본 방송 (Default)',
+      presets: [
+        { id: 'p1', condition: '후원금액 1,000 cash 이상', active: true },
+        { id: 'p2', condition: '후원금액 10,000 cash 이상', active: true },
+      ]
+    },
+    {
+      id: 'g2',
+      name: '공포 게임용',
+      presets: [
+        { id: 'p3', condition: '후원금액 1,000 cash 이상', active: true },
+        { id: 'p4', condition: '후원금액 5,000 cash 이상', active: true },
+      ]
+    }
+  ]);
+  const [activeGroupId, setActiveGroupId] = useState('g1');
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
+  const [editingGroupName, setEditingGroupName] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showDeleteError, setShowDeleteError] = useState(false);
+  const [isAddingGroup, setIsAddingGroup] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [draggedGroupId, setDraggedGroupId] = useState<string | null>(null);
+  const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
+  const [deletingGroupId, setDeletingGroupId] = useState<string | null>(null);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [tempSelectedGroupId, setTempSelectedGroupId] = useState<string | null>(null);
+
+  const activeGroup = presetGroups.find(g => g.id === activeGroupId) || presetGroups[0];
+
+  const handleDragStart = (e: React.DragEvent, id: string) => {
+    setDraggedGroupId(id);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDrop = (e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    if (!draggedGroupId || draggedGroupId === targetId) return;
+
+    const draggedIndex = presetGroups.findIndex(g => g.id === draggedGroupId);
+    const targetIndex = presetGroups.findIndex(g => g.id === targetId);
+
+    const newGroups = [...presetGroups];
+    const [draggedItem] = newGroups.splice(draggedIndex, 1);
+    newGroups.splice(targetIndex, 0, draggedItem);
+
+    setPresetGroups(newGroups);
+    setDraggedGroupId(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedGroupId(null);
+  };
+
+  const handleAddGroupClick = () => {
+    setIsAddingGroup(true);
+    setNewGroupName('');
+  };
+
+  const confirmAddGroup = () => {
+    if (!newGroupName.trim()) {
+      setIsAddingGroup(false);
+      return;
+    }
+    const newId = 'g' + Date.now();
+    setPresetGroups([...presetGroups, { 
+      id: newId, 
+      name: newGroupName.trim(), 
+      presets: [
+        { id: 'p' + Date.now() + '1', condition: '후원금액 1,000 cash 이상', active: true },
+        { id: 'p' + Date.now() + '2', condition: '후원금액 10,000 cash 이상', active: true }
+      ] 
+    }]);
+    setActiveGroupId(newId);
+    setIsAddingGroup(false);
+    setNewGroupName('');
+  };
+
+  const cancelAddGroup = () => {
+    setIsAddingGroup(false);
+    setNewGroupName('');
+  };
+
+  const handleDeleteGroup = () => {
+    if (presetGroups.length <= 1) {
+      setShowDeleteError(true);
+      setTimeout(() => setShowDeleteError(false), 2000);
+      return;
+    }
+    if (!showDeleteConfirm) {
+      setShowDeleteConfirm(true);
+      setTimeout(() => setShowDeleteConfirm(false), 3000);
+      return;
+    }
+    const newGroups = presetGroups.filter(g => g.id !== activeGroupId);
+    setPresetGroups(newGroups);
+    setActiveGroupId(newGroups[0].id);
+    setShowDeleteConfirm(false);
+  };
+
+  const startEditingGroup = () => {
+    setEditingGroupId(activeGroupId);
+    setEditingGroupName(activeGroup.name);
+  };
+
+  const saveEditingGroup = () => {
+    if (!editingGroupName.trim()) return;
+    setPresetGroups(presetGroups.map(g => g.id === activeGroupId ? { ...g, name: editingGroupName } : g));
+    setEditingGroupId(null);
+  };
+
+  const handleAddGroupFromModal = () => {
+    const newId = 'g' + Date.now();
+    const newName = '새 프리셋 그룹';
+    setPresetGroups([...presetGroups, { 
+      id: newId, 
+      name: newName, 
+      presets: [
+        { id: 'p' + Date.now() + '1', condition: '후원금액 1,000 cash 이상', active: true },
+        { id: 'p' + Date.now() + '2', condition: '후원금액 10,000 cash 이상', active: true }
+      ] 
+    }]);
+    setEditingGroupId(newId);
+    setEditingGroupName(newName);
+  };
+
+  const handleDeleteGroupFromModal = (id: string) => {
+    if (presetGroups.length <= 1) return;
+    
+    if (deletingGroupId !== id) {
+      setDeletingGroupId(id);
+      setTimeout(() => setDeletingGroupId(null), 3000);
+      return;
+    }
+    
+    const newGroups = presetGroups.filter(g => g.id !== id);
+    setPresetGroups(newGroups);
+    if (activeGroupId === id) {
+      setActiveGroupId(newGroups[0].id);
+    }
+    setDeletingGroupId(null);
+  };
+
+  const startEditingGroupFromModal = (id: string, name: string) => {
+    setEditingGroupId(id);
+    setEditingGroupName(name);
+  };
+
+  const saveEditingGroupFromModal = () => {
+    if (!editingGroupName.trim() || !editingGroupId) return;
+    setPresetGroups(presetGroups.map(g => g.id === editingGroupId ? { ...g, name: editingGroupName } : g));
+    setEditingGroupId(null);
+  };
+
+  const handleAddPreset = () => {
+    const newPreset = {
+      id: 'p' + Date.now(),
+      condition: '',
+      active: true
+    };
+    setPresetGroups(presetGroups.map(g => g.id === activeGroupId ? { ...g, presets: [...g.presets, newPreset] } : g));
+  };
+
+  const handleDeletePreset = (presetId: string) => {
+    setPresetGroups(presetGroups.map(g => g.id === activeGroupId ? { ...g, presets: g.presets.filter(p => p.id !== presetId) } : g));
+  };
+
+  const handlePresetConditionChange = (presetId: string, newCondition: string) => {
+    setPresetGroups(presetGroups.map(g => g.id === activeGroupId ? {
+      ...g,
+      presets: g.presets.map(p => p.id === presetId ? { ...p, condition: newCondition } : p)
+    } : g));
+  };
+
   const handleTestPlay = () => {
     setShowPreviewAnim(false);
     setTimeout(() => setShowPreviewAnim(true), 100);
+  };
+
+  const handleDropdownSelect = () => {
+    if (tempSelectedGroupId) {
+      setActiveGroupId(tempSelectedGroupId);
+    }
+    setIsDropdownOpen(false);
+  };
+
+  const toggleDropdown = () => {
+    if (!isDropdownOpen) {
+      setTempSelectedGroupId(activeGroupId);
+    }
+    setIsDropdownOpen(!isDropdownOpen);
   };
 
   return (
@@ -358,14 +569,111 @@ function AlertSettings({ layoutMode, isCollapsed, setIsCollapsed, setLayoutMode 
           </div>
 
           <div className="space-y-6">
-            <Section title="프리셋 설정" subtitle="알림 조건을 미리 설정하여 쉽게 추가하고 삭제 할 수 있는 기능입니다.">
-              <FormRow label="1번 프리셋">
-                <div className="flex items-center gap-3 w-full">
-                  <input type="text" value="후원금액 1000 cash 이상" className="flex-1 border border-gray-300 rounded-md px-3 py-2 text-sm" readOnly />
-                  <Toggle active={true} />
-                  <button className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md text-sm font-medium hover:bg-gray-200">설정 ▼</button>
+            <Section title="프리셋 그룹 설정" subtitle="방송 주제별로 프리셋을 그룹화하여 다르게 적용할 수 있습니다.">
+              {/* Group Selection Row (Compact) */}
+              <div className="mb-6 bg-gray-50 p-4 rounded-xl border border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-bold text-gray-700 flex items-center gap-2 shrink-0">
+                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
+                    현재 그룹
+                  </span>
+                  
+                  {/* Custom Dropdown */}
+                  <div className="relative">
+                    <button
+                      onClick={toggleDropdown}
+                      className="flex items-center justify-between border border-gray-300 rounded-md px-3 py-2 text-sm font-medium outline-none focus:border-blue-500 bg-white w-64 shadow-sm cursor-pointer hover:bg-gray-50 transition-colors"
+                    >
+                      <span className="truncate">{activeGroup.name}</span>
+                      <ChevronRight size={14} className={`transform transition-transform ${isDropdownOpen ? 'rotate-90' : ''}`} />
+                    </button>
+
+                    {isDropdownOpen && (
+                      <>
+                        <div 
+                          className="fixed inset-0 z-10" 
+                          onClick={() => setIsDropdownOpen(false)}
+                        ></div>
+                        <div className="absolute top-full left-0 mt-1 w-64 bg-white border border-gray-200 rounded-lg shadow-xl z-20 overflow-hidden flex flex-col">
+                          <div className="max-h-60 overflow-y-auto p-2 space-y-1">
+                            {presetGroups.map(g => (
+                              <label 
+                                key={g.id} 
+                                className={`flex items-center gap-2 px-3 py-2 rounded-md cursor-pointer transition-colors ${tempSelectedGroupId === g.id ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-50 text-gray-700'}`}
+                              >
+                                <input 
+                                  type="radio" 
+                                  name="presetGroup" 
+                                  value={g.id}
+                                  checked={tempSelectedGroupId === g.id}
+                                  onChange={() => setTempSelectedGroupId(g.id)}
+                                  className="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                                />
+                                <span className="text-sm font-medium truncate">{g.name}</span>
+                              </label>
+                            ))}
+                          </div>
+                          <div className="p-2 border-t border-gray-100 bg-gray-50">
+                            <button
+                              onClick={handleDropdownSelect}
+                              className="w-full py-2 bg-blue-500 text-white rounded-md text-sm font-bold hover:bg-blue-600 transition-colors shadow-sm"
+                            >
+                              선택
+                            </button>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
-              </FormRow>
+                <button 
+                  onClick={() => setIsGroupModalOpen(true)}
+                  className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-md text-sm font-medium hover:bg-gray-50 flex items-center gap-2 shadow-sm transition-colors shrink-0"
+                >
+                  <Settings size={14} /> 그룹 관리
+                </button>
+              </div>
+
+              {/* Presets in Active Group */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between mb-3 px-1">
+                  <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
+                    그룹 내 프리셋 목록
+                  </h3>
+                  <button onClick={handleAddPreset} className="text-sm text-blue-600 font-bold hover:text-blue-700 flex items-center gap-1 transition-colors">
+                    <Plus size={14} strokeWidth={3} /> 프리셋 추가
+                  </button>
+                </div>
+                
+                {activeGroup.presets.length === 0 ? (
+                  <div className="text-center py-8 text-sm text-gray-500 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                    등록된 프리셋이 없습니다. 새 프리셋을 추가해보세요.
+                  </div>
+                ) : (
+                  activeGroup.presets.map((preset, index) => (
+                    <div key={preset.id} className="flex items-center gap-3 w-full p-3 border border-gray-200 rounded-lg bg-white hover:border-blue-400 hover:shadow-sm transition-all group">
+                      <div className="w-20 shrink-0 font-bold text-sm text-gray-700">{index + 1}번 프리셋</div>
+                      <input 
+                        type="text" 
+                        value={preset.condition} 
+                        onChange={(e) => handlePresetConditionChange(preset.id, e.target.value)}
+                        className="flex-1 border border-gray-300 rounded-md px-3 py-2 text-sm bg-gray-50 text-gray-600 focus:bg-white focus:border-blue-500 outline-none transition-colors" 
+                        placeholder="조건을 입력하세요 (예: 후원금액 1,000 cash 이상)"
+                      />
+                      <Toggle active={preset.active} />
+                      <button className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md text-sm font-medium hover:bg-gray-200 transition-colors">설정 ▼</button>
+                      {index >= 2 ? (
+                        <button onClick={() => handleDeletePreset(preset.id)} className="p-2 text-gray-400 hover:text-red-500 rounded-md hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100" title="프리셋 삭제">
+                          <X size={16} />
+                        </button>
+                      ) : (
+                        <div className="w-8"></div>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
             </Section>
 
             <Section title="기본 설정">
@@ -437,20 +745,31 @@ function AlertSettings({ layoutMode, isCollapsed, setIsCollapsed, setLayoutMode 
           </div>
         </div>
 
+        {/* Collapse Toggle Button & Divider */}
         {layoutMode === 'collapse' && (
-          <div className="relative flex items-center justify-center w-0 z-10">
-            <button 
-              onClick={() => setIsCollapsed(!isCollapsed)}
-              className="absolute top-32 left-0 w-6 h-12 bg-white border border-gray-300 rounded-r-md shadow-sm flex items-center justify-center text-gray-500 hover:text-blue-500 hover:bg-blue-50 transition-colors"
-            >
-              {isCollapsed ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
-            </button>
+          <div className="relative w-0 z-20">
+            {/* Vertical Divider Line */}
+            <div className="absolute top-0 bottom-0 w-px bg-gray-200"></div>
+            
+            {/* Sticky Toggle Button */}
+            <div className="sticky top-[50vh] -translate-y-1/2 -ml-3.5">
+              <button 
+                onClick={() => setIsCollapsed(!isCollapsed)}
+                className="w-7 h-20 bg-white border border-gray-200 rounded-full shadow-sm flex items-center justify-center text-gray-400 hover:text-blue-500 hover:border-blue-300 hover:bg-blue-50 hover:shadow-md transition-all group"
+              >
+                <div className="flex flex-col items-center gap-1">
+                  <div className="w-1 h-1 rounded-full bg-gray-300 group-hover:bg-blue-300 transition-colors"></div>
+                  {isCollapsed ? <ChevronLeft size={14} strokeWidth={3} /> : <ChevronRight size={14} strokeWidth={3} />}
+                  <div className="w-1 h-1 rounded-full bg-gray-300 group-hover:bg-blue-300 transition-colors"></div>
+                </div>
+              </button>
+            </div>
           </div>
         )}
 
         <div className={`transition-all duration-300 ease-in-out flex justify-end ${
           layoutMode === 'pip' 
-            ? 'fixed bottom-8 right-8 w-[400px] z-50 shadow-2xl bg-white rounded-xl border border-gray-200 overflow-hidden' 
+            ? 'fixed bottom-8 right-28 w-[400px] z-40 shadow-2xl bg-white rounded-xl border border-gray-200 overflow-hidden' 
             : `shrink-0 sticky top-24 overflow-hidden ${
                 (layoutMode === 'collapse' && isCollapsed)
                   ? 'w-0 opacity-0 ml-0'
@@ -509,6 +828,83 @@ function AlertSettings({ layoutMode, isCollapsed, setIsCollapsed, setLayoutMode 
         </div>
 
       </div>
+
+      {/* Group Management Modal */}
+      {isGroupModalOpen && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[80vh]">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gray-50">
+              <h2 className="text-lg font-bold text-gray-800">프리셋 그룹 관리</h2>
+              <button onClick={() => setIsGroupModalOpen(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto flex-1 space-y-2">
+              {presetGroups.map(g => (
+                <div
+                  key={g.id}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, g.id)}
+                  onDragOver={handleDragOver}
+                  onDrop={(e) => handleDrop(e, g.id)}
+                  onDragEnd={handleDragEnd}
+                  className={`flex items-center gap-3 p-3 rounded-lg border bg-white transition-all ${draggedGroupId === g.id ? 'opacity-40 scale-[0.98]' : 'hover:border-blue-300'}`}
+                >
+                  <div className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600" title="드래그하여 순서 변경">
+                    <GripVertical size={16} />
+                  </div>
+
+                  {editingGroupId === g.id ? (
+                    <div className="flex-1 flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={editingGroupName}
+                        onChange={(e) => setEditingGroupName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') saveEditingGroupFromModal();
+                          if (e.key === 'Escape') setEditingGroupId(null);
+                        }}
+                        className="flex-1 border border-blue-500 rounded px-2 py-1.5 text-sm font-medium outline-none focus:ring-2 focus:ring-blue-200"
+                        autoFocus
+                      />
+                      <button onClick={saveEditingGroupFromModal} className="p-1.5 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"><Check size={14}/></button>
+                      <button onClick={() => setEditingGroupId(null)} className="p-1.5 bg-gray-200 text-gray-600 rounded hover:bg-gray-300 transition-colors"><X size={14}/></button>
+                    </div>
+                  ) : (
+                    <>
+                      <span className="flex-1 text-sm font-medium text-gray-700">{g.name}</span>
+                      <button onClick={() => startEditingGroupFromModal(g.id, g.name)} className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded transition-colors" title="이름 수정">
+                        <Edit2 size={14} />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteGroupFromModal(g.id)}
+                        disabled={presetGroups.length <= 1}
+                        className={`p-1.5 rounded transition-colors ${
+                          presetGroups.length <= 1 ? 'text-gray-300 cursor-not-allowed' :
+                          deletingGroupId === g.id ? 'bg-red-500 text-white hover:bg-red-600' : 'text-gray-400 hover:text-red-500 hover:bg-red-50'
+                        }`}
+                        title={presetGroups.length <= 1 ? "최소 1개의 그룹이 필요합니다" : "그룹 삭제"}
+                      >
+                        {deletingGroupId === g.id ? <span className="text-xs font-bold px-1">삭제?</span> : <X size={14} />}
+                      </button>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
+              <button
+                onClick={handleAddGroupFromModal}
+                className="w-full py-2.5 bg-white border border-dashed border-gray-300 text-gray-600 rounded-lg text-sm font-bold hover:border-blue-500 hover:text-blue-500 hover:bg-blue-50 transition-all flex items-center justify-center gap-2"
+              >
+                <Plus size={16} /> 새 그룹 추가
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -607,6 +1003,60 @@ function ChatMessage({ platform, name, message, color }: any) {
       <span className="w-4 h-4 rounded bg-gray-700 text-white flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">{platform}</span>
       <span className="font-bold shrink-0" style={{ color }}>{name}</span>
       <span className="text-white break-all">{message}</span>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------
+// Floating Action Buttons Component
+// ---------------------------------------------------------
+function FloatingActionButtons() {
+  const [showTooltip, setShowTooltip] = useState(true);
+
+  return (
+    <div className="fixed bottom-8 right-8 z-50 flex flex-col gap-3 items-center">
+      {/* Discord Button */}
+      <button className="w-12 h-12 bg-white rounded-full shadow-lg border border-gray-100 flex items-center justify-center text-[#5865F2] hover:bg-gray-50 transition-colors">
+        <MessageCircle size={24} fill="currentColor" />
+      </button>
+
+      {/* Remote Control Button with Tooltip */}
+      <div className="relative flex items-center justify-center">
+        {/* Tooltip */}
+        {showTooltip && (
+          <div className="absolute right-full mr-4 top-1/2 -translate-y-1/2 w-72 bg-white rounded-xl shadow-xl border border-gray-100 p-4 flex gap-3 animate-fade-in">
+            <div className="w-5 h-5 rounded-full bg-gray-400 text-white flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">i</div>
+            <div>
+              <h4 className="text-sm font-bold text-gray-800 mb-1">방송을 할 때 리모컨을 사용하세요!</h4>
+              <p className="text-xs text-gray-500 mb-3">중요한 후원 기능들을 컨트롤 할 수 있습니다.</p>
+              <div className="flex gap-2">
+                <button className="flex-1 py-1.5 px-3 bg-white border border-gray-300 rounded-md text-xs font-medium text-gray-700 hover:bg-gray-50">웹 리모컨</button>
+                <button className="flex-1 py-1.5 px-3 bg-blue-500 text-white rounded-md text-xs font-medium hover:bg-blue-600">설치형 리모컨</button>
+              </div>
+            </div>
+            {/* Tooltip Arrow */}
+            <div className="absolute top-1/2 -translate-y-1/2 -right-2 w-4 h-4 bg-white border-r border-t border-gray-100 transform rotate-45"></div>
+            {/* Close Tooltip */}
+            <button onClick={() => setShowTooltip(false)} className="absolute top-2 right-2 text-gray-400 hover:text-gray-600">
+              <X size={14} />
+            </button>
+          </div>
+        )}
+
+        {/* Remote Button */}
+        <button className="w-14 h-16 bg-blue-600 rounded-2xl shadow-lg shadow-blue-600/30 flex flex-col items-center justify-center text-white hover:bg-blue-700 transition-colors gap-1">
+          <Smartphone size={20} />
+          <span className="text-[10px] font-bold">리모컨<br/>실행</span>
+        </button>
+      </div>
+
+      {/* Scroll to Top Button */}
+      <button 
+        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+        className="w-12 h-12 bg-white rounded-full shadow-lg border border-gray-100 flex items-center justify-center text-gray-600 hover:bg-gray-50 transition-colors mt-2"
+      >
+        <ArrowUp size={20} />
+      </button>
     </div>
   );
 }
