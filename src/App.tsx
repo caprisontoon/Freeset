@@ -3,7 +3,8 @@ import {
   LayoutDashboard, Settings, Bell, LayoutGrid, Mic, Trophy, 
   Heart, Box, User, Search, Sun, Moon, ChevronLeft, ChevronRight, 
   Play, Image as ImageIcon, Volume2, Plus, X, AlignCenter, AlignLeft, MessageSquare,
-  MessageCircle, Smartphone, ArrowUp, Edit2, Check, GripVertical
+  MessageCircle, Smartphone, ArrowUp, Edit2, Check, GripVertical,
+  Download, Upload, Copy, Filter, SortAsc, SortDesc, Image
 } from 'lucide-react';
 
 export default function App() {
@@ -374,7 +375,32 @@ function AlertSettings({ layoutMode, isCollapsed, setIsCollapsed, setLayoutMode 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [tempSelectedGroupId, setTempSelectedGroupId] = useState<string | null>(null);
 
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortOrder, setSortOrder] = useState('custom');
+  const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
+  const [isAutoMapModalOpen, setIsAutoMapModalOpen] = useState(false);
+
   const activeGroup = presetGroups.find(g => g.id === activeGroupId) || presetGroups[0];
+
+  // Filter and Sort Presets
+  const filteredAndSortedPresets = activeGroup.presets
+    .filter(p => p.condition.toLowerCase().includes(searchQuery.toLowerCase()))
+    .sort((a, b) => {
+      if (sortOrder === 'custom') return 0;
+      
+      // Extract numbers from condition for sorting (e.g., "1,000" -> 1000)
+      const getAmount = (condition: string) => {
+        const match = condition.replace(/,/g, '').match(/\d+/);
+        return match ? parseInt(match[0], 10) : 0;
+      };
+      
+      const amountA = getAmount(a.condition);
+      const amountB = getAmount(b.condition);
+      
+      if (sortOrder === 'amount_asc') return amountA - amountB;
+      if (sortOrder === 'amount_desc') return amountB - amountA;
+      return 0;
+    });
 
   const handleDragStart = (e: React.DragEvent, id: string) => {
     setDraggedGroupId(id);
@@ -636,22 +662,73 @@ function AlertSettings({ layoutMode, isCollapsed, setIsCollapsed, setLayoutMode 
 
               {/* Presets in Active Group */}
               <div className="space-y-3">
-                <div className="flex items-center justify-between mb-3 px-1">
-                  <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2">
-                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
-                    그룹 내 프리셋 목록
-                  </h3>
-                  <button onClick={handleAddPreset} className="text-sm text-blue-600 font-bold hover:text-blue-700 flex items-center gap-1 transition-colors">
-                    <Plus size={14} strokeWidth={3} /> 프리셋 추가
-                  </button>
+                <div className="flex flex-col gap-3 mb-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between px-1 gap-3">
+                    <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2">
+                      <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
+                      그룹 내 프리셋 목록
+                    </h3>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button className="px-2.5 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-300 rounded-md hover:bg-gray-50 flex items-center gap-1 shadow-sm transition-colors">
+                        <Download size={14} /> 내보내기
+                      </button>
+                      <button className="px-2.5 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-300 rounded-md hover:bg-gray-50 flex items-center gap-1 shadow-sm transition-colors">
+                        <Upload size={14} /> 가져오기
+                      </button>
+                      <button onClick={handleAddPreset} className="px-3 py-1.5 text-xs font-bold text-white bg-blue-500 rounded-md hover:bg-blue-600 flex items-center gap-1 shadow-sm transition-colors ml-1">
+                        <Plus size={14} strokeWidth={3} /> 프리셋 추가
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Toolbar */}
+                  <div className="flex flex-col lg:flex-row items-center justify-between gap-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                    <div className="flex flex-col sm:flex-row items-center gap-2 w-full lg:w-auto flex-1">
+                      <div className="relative w-full sm:max-w-xs">
+                        <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input 
+                          type="text" 
+                          placeholder="프리셋 조건 검색..." 
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white shadow-sm"
+                        />
+                      </div>
+                      <select 
+                        value={sortOrder}
+                        onChange={(e) => setSortOrder(e.target.value)}
+                        className="w-full sm:w-auto py-1.5 pl-3 pr-8 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 bg-white shadow-sm cursor-pointer"
+                      >
+                        <option value="custom">사용자 지정 순서</option>
+                        <option value="amount_asc">금액 낮은순</option>
+                        <option value="amount_desc">금액 높은순</option>
+                      </select>
+                    </div>
+                    
+                    <div className="flex items-center gap-2 w-full lg:w-auto justify-end">
+                      <button 
+                        onClick={() => setIsAutoMapModalOpen(true)}
+                        className="flex-1 sm:flex-none px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 flex items-center justify-center gap-1.5 shadow-sm transition-colors"
+                      >
+                        <Image size={14} className="text-gray-500" /> 이미지 자동 매핑
+                      </button>
+                      <button 
+                        onClick={() => setIsBatchModalOpen(true)}
+                        className="flex-1 sm:flex-none px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 flex items-center justify-center gap-1.5 shadow-sm transition-colors"
+                      >
+                        <Copy size={14} className="text-blue-500" /> 설정 일괄 적용
+                      </button>
+                    </div>
+                  </div>
                 </div>
                 
-                {activeGroup.presets.length === 0 ? (
-                  <div className="text-center py-8 text-sm text-gray-500 bg-gray-50 rounded-lg border border-dashed border-gray-300">
-                    등록된 프리셋이 없습니다. 새 프리셋을 추가해보세요.
+                {filteredAndSortedPresets.length === 0 ? (
+                  <div className="text-center py-12 text-sm text-gray-500 bg-gray-50 rounded-lg border border-dashed border-gray-300 flex flex-col items-center gap-2">
+                    <Search size={24} className="text-gray-400" />
+                    {searchQuery ? '검색 결과가 없습니다.' : '등록된 프리셋이 없습니다. 새 프리셋을 추가해보세요.'}
                   </div>
                 ) : (
-                  activeGroup.presets.map((preset, index) => (
+                  filteredAndSortedPresets.map((preset, index) => (
                     <div key={preset.id} className="flex items-center gap-3 w-full p-3 border border-gray-200 rounded-lg bg-white hover:border-blue-400 hover:shadow-sm transition-all group">
                       <div className="w-20 shrink-0 font-bold text-sm text-gray-700">{index + 1}번 프리셋</div>
                       <input 
@@ -901,6 +978,182 @@ function AlertSettings({ layoutMode, isCollapsed, setIsCollapsed, setLayoutMode 
               >
                 <Plus size={16} /> 새 그룹 추가
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Batch Apply Modal */}
+      {isBatchModalOpen && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gray-50">
+              <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                <Copy size={18} className="text-blue-500" /> 설정 일괄 적용
+              </h2>
+              <button onClick={() => setIsBatchModalOpen(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto space-y-8">
+              <p className="text-sm text-gray-600 font-medium">현재 그룹의 모든 프리셋에 아래 설정을 일괄 적용합니다.</p>
+              
+              {/* 알림 효과 설정 */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <input type="checkbox" className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500" defaultChecked />
+                  <h3 className="text-sm font-bold text-gray-800">알림 효과 설정</h3>
+                </div>
+                
+                <div className="grid grid-cols-[120px_1fr] gap-4 items-center">
+                  <span className="text-sm font-medium text-gray-600">알림 효과</span>
+                  <div className="flex gap-3 w-full max-w-2xl">
+                    <select className="flex-1 border border-gray-300 rounded-md px-3 py-2.5 text-sm outline-none focus:border-blue-500 bg-white">
+                      <option>Fade In</option>
+                    </select>
+                    <select className="flex-1 border border-gray-300 rounded-md px-3 py-2.5 text-sm outline-none focus:border-blue-500 bg-white">
+                      <option>Fade Out</option>
+                    </select>
+                    <div className="flex-1 border border-gray-100 rounded-md bg-gray-50 flex items-center justify-center text-gray-300">
+                      <ImageIcon size={20} />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-[120px_1fr] gap-4 items-center">
+                  <span className="text-sm font-medium text-gray-600">텍스트 애니메이션</span>
+                  <div className="flex gap-3 w-full max-w-2xl">
+                    <select className="flex-1 border border-gray-300 rounded-md px-3 py-2.5 text-sm outline-none focus:border-blue-500 bg-white">
+                      <option>Pulse</option>
+                    </select>
+                    <button className="flex-[2] border border-gray-100 rounded-md px-3 py-2.5 text-sm font-medium text-gray-600 bg-gray-50 hover:bg-gray-100 transition-colors">
+                      텍스트 효과 미리보기
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <hr className="border-gray-100" />
+
+              {/* 알림 메시지 설정 */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <input type="checkbox" className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500" defaultChecked />
+                  <h3 className="text-sm font-bold text-gray-800">알림 메시지 설정</h3>
+                </div>
+
+                <div className="grid grid-cols-[120px_1fr] gap-4 items-center">
+                  <span className="text-sm font-medium text-gray-600 flex items-center gap-1">알림 메시지 <div className="w-4 h-4 rounded-full bg-gray-400 text-white flex items-center justify-center text-[10px] font-bold">?</div></span>
+                  <input type="text" defaultValue="{닉네임}님이 {시그니처}를 신청하셨어요!" className="w-full max-w-2xl border border-gray-300 rounded-md px-3 py-2.5 text-sm outline-none focus:border-blue-500 bg-gray-50" />
+                </div>
+
+                <div className="grid grid-cols-[120px_1fr] gap-4 items-center">
+                  <span className="text-sm font-medium text-gray-600 flex items-center gap-1">재생 딜레이(초) <div className="w-4 h-4 rounded-full bg-gray-400 text-white flex items-center justify-center text-[10px] font-bold">?</div></span>
+                  <div className="relative w-full max-w-2xl">
+                    <input type="number" defaultValue="0" className="w-full border border-gray-300 rounded-md px-3 py-2.5 text-sm outline-none focus:border-blue-500 bg-gray-50" />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-bold text-gray-700">초</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-[120px_1fr] gap-4 items-center">
+                  <span className="text-sm font-medium text-gray-600 flex items-center gap-1">알림 노출 시간(초) <div className="w-4 h-4 rounded-full bg-gray-400 text-white flex items-center justify-center text-[10px] font-bold">?</div></span>
+                  <div className="relative w-full max-w-2xl">
+                    <input type="number" defaultValue="3" className="w-full border border-gray-300 rounded-md px-3 py-2.5 text-sm outline-none focus:border-blue-500 bg-gray-50" />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-bold text-gray-700">초</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-[120px_1fr] gap-4 items-center">
+                  <span className="text-sm font-medium text-gray-600">폰트 설정</span>
+                  <div className="flex gap-3 w-full max-w-2xl">
+                    <select className="flex-[2] border border-gray-300 rounded-md px-3 py-2.5 text-sm font-bold outline-none focus:border-blue-500 bg-white">
+                      <option>제주 고딕</option>
+                    </select>
+                    <select className="flex-1 border border-gray-300 rounded-md px-3 py-2.5 text-sm outline-none focus:border-blue-500 bg-white">
+                      <option>36px</option>
+                    </select>
+                    <div className="flex-1 border border-gray-300 rounded-md px-3 py-2.5 text-sm bg-gray-50 flex items-center justify-between">
+                      <span className="text-gray-600">#FFFFFF</span>
+                      <div className="w-5 h-5 rounded-full bg-white border border-gray-200 shadow-sm"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-[120px_1fr] gap-4 items-center">
+                  <span className="text-sm font-medium text-gray-600">닉네임, 금액 컬러</span>
+                  <div className="w-full max-w-[200px] border border-gray-300 rounded-md px-3 py-2.5 text-sm bg-gray-50 flex items-center justify-between">
+                    <span className="text-gray-600">#519CFF</span>
+                    <div className="w-5 h-5 rounded-full bg-[#519CFF] border border-gray-200 shadow-sm"></div>
+                  </div>
+                </div>
+              </div>
+
+              <hr className="border-gray-100" />
+
+              {/* 후원 메시지 설정 */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <input type="checkbox" className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500" defaultChecked />
+                  <h3 className="text-sm font-bold text-gray-800">후원 메시지 설정</h3>
+                </div>
+
+                <div className="grid grid-cols-[120px_1fr] gap-4 items-center">
+                  <span className="text-sm font-medium text-gray-600">폰트 설정</span>
+                  <div className="flex gap-3 w-full max-w-2xl">
+                    <select className="flex-[2] border border-gray-300 rounded-md px-3 py-2.5 text-sm font-bold outline-none focus:border-blue-500 bg-white">
+                      <option>제주 고딕</option>
+                    </select>
+                    <select className="flex-1 border border-gray-300 rounded-md px-3 py-2.5 text-sm outline-none focus:border-blue-500 bg-white">
+                      <option>40px</option>
+                    </select>
+                    <div className="flex-1 border border-gray-300 rounded-md px-3 py-2.5 text-sm bg-gray-50 flex items-center justify-between">
+                      <span className="text-gray-600">#FFFFFF</span>
+                      <div className="w-5 h-5 rounded-full bg-white border border-gray-200 shadow-sm"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+            
+            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end gap-2 shrink-0">
+              <button onClick={() => setIsBatchModalOpen(false)} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">취소</button>
+              <button onClick={() => setIsBatchModalOpen(false)} className="px-4 py-2 text-sm font-bold text-white bg-blue-500 rounded-lg hover:bg-blue-600">일괄 적용하기</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Auto Map Modal */}
+      {isAutoMapModalOpen && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden flex flex-col">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gray-50">
+              <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                <Image size={18} className="text-blue-500" /> 이미지 자동 매핑
+              </h2>
+              <button onClick={() => setIsAutoMapModalOpen(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="bg-blue-50 text-blue-800 p-4 rounded-lg text-sm mb-4">
+                <p className="font-bold mb-1">파일명 규칙 안내</p>
+                <p>업로드하는 파일명에 금액이 포함되어 있으면 해당 금액의 프리셋에 자동으로 매핑됩니다.</p>
+                <p className="mt-2 text-xs opacity-80">예시: <code className="bg-blue-100 px-1 py-0.5 rounded">text_donation_1000.png</code> ➔ 1,000 cash 프리셋에 적용</p>
+              </div>
+              
+              <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 flex flex-col items-center justify-center text-center hover:bg-gray-50 transition-colors cursor-pointer">
+                <div className="w-12 h-12 bg-blue-100 text-blue-500 rounded-full flex items-center justify-center mb-3">
+                  <Upload size={24} />
+                </div>
+                <p className="text-sm font-bold text-gray-700 mb-1">클릭하거나 파일을 드래그하여 업로드</p>
+                <p className="text-xs text-gray-500">PNG, JPG, GIF (최대 10MB)</p>
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end">
+              <button onClick={() => setIsAutoMapModalOpen(false)} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">닫기</button>
             </div>
           </div>
         </div>
